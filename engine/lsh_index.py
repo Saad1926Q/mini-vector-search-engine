@@ -1,5 +1,6 @@
 import pickle
 import numpy as np
+from pathlib import Path
 from typing import Dict,List
 from numpy.typing import NDArray
 from utils import hamming_distance
@@ -33,7 +34,21 @@ class LSHIndex:
 
         return hash_str
     
-    def build_index(self,dataset_vectors):
+    def build_index(self,dataset_vectors,index_path: str = None):
+        """
+            Build the LSH index. If index_path exists, load it instead of rebuilding.
+
+        """
+        
+        if index_path and Path(index_path).exists():
+            with open(index_path, 'rb') as f:
+                saved_index = pickle.load(f)
+                self.hyperplanes = saved_index.hyperplanes
+                self.hashtable = saved_index.hashtable
+                self.dataset_vectors = saved_index.dataset_vectors
+            return
+        
+        
         self.dataset_vectors = dataset_vectors
         
         for i in range(len(dataset_vectors)):
@@ -43,6 +58,9 @@ class LSHIndex:
                 self.hashtable[hash_str]=[]
 
             self.hashtable[hash_str].append(i)
+
+        if index_path:
+            self.save(index_path)
 
 
     def _find_closest_buckets(self,query_hash,k):

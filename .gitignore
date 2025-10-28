@@ -13,3 +13,8 @@ wheels/
 #data
 /data/images
 embeddings.pkl
+lsh_index.pkl
+
+
+
+test.ipynb
