@@ -9,11 +9,14 @@ wheels/
 
 # Virtual environments
 .venv
+.venv-faiss
 
 #data
 /data/images
 embeddings.pkl
 lsh_index.pkl
+ground_truth.pkl
+faiss_lsh.index
 
 
 
