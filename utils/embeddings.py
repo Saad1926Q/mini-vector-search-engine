@@ -80,7 +80,7 @@ def get_embeddings(image_dir: Path,embedding_path: Path,model: CLIPModel,process
         image_extensions = [".jpg", ".jpeg", ".png", ".bmp"]
 
         image_paths = [
-            p for p in image_dir.rglob("*") 
+            p for p in image_dir.glob("*") 
             if p.suffix.lower() in image_extensions
         ]
 

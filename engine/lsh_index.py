@@ -7,7 +7,12 @@ from utils import hamming_distance
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-class LSHIndex:
+class LSHTree:
+    """
+    Essentially what we are doing is that our LSHIndex is going to have multiple hashtables
+    LSHTree represents a single tree with random hyperplanes that hashes vectors into buckets.
+    
+    """
     def __init__(self,num_hyperplanes:int,vector_dimension:int):
         
         self.num_hyperplanes: int = num_hyperplanes
@@ -16,7 +21,7 @@ class LSHIndex:
         self.hyperplanes :NDArray[np.float64]=np.random.randn(num_hyperplanes,vector_dimension)
 
         self.hashtable :Dict[str, List[int]]={}
-
+    
     def _hash(self,vector:NDArray[np.float64])->str:
         """
             Compute the binary hash string for a given vector.
@@ -33,31 +38,35 @@ class LSHIndex:
         hash_str = ''.join(map(str, hash_bits))
 
         return hash_str
+
+    
+class LSHIndex:
+    def __init__(self,num_hyperplanes:int,vector_dimension:int,num_trees:int):
+        
+        self.num_hyperplanes: int = num_hyperplanes
+        self.vector_dimension: int = vector_dimension
+        self.num_trees: int = num_trees
+
+        self.trees: List[LSHTree]=[LSHTree(num_hyperplanes=self.num_hyperplanes,vector_dimension=self.vector_dimension) for _ in range(num_trees)]
     
     def build_index(self,dataset_vectors,index_path: str = None):
         """
             Build the LSH index. If index_path exists, load it instead of rebuilding.
 
-        """
-        
-        if index_path and Path(index_path).exists():
-            with open(index_path, 'rb') as f:
-                saved_index = pickle.load(f)
-                self.hyperplanes = saved_index.hyperplanes
-                self.hashtable = saved_index.hashtable
-                self.dataset_vectors = saved_index.dataset_vectors
-            return
-        
+        """        
         
         self.dataset_vectors = dataset_vectors
-        
+
+
         for i in range(len(dataset_vectors)):
-            hash_str=self._hash(dataset_vectors[i])
+            vector=dataset_vectors[i]
+            for tree in self.trees:
+                hash_str=tree._hash(vector)
 
-            if hash_str not in self.hashtable.keys():
-                self.hashtable[hash_str]=[]
+                if hash_str not in tree.hashtable.keys():
+                    tree.hashtable[hash_str]=[]
 
-            self.hashtable[hash_str].append(i)
+                tree.hashtable[hash_str].append(i)
 
         if index_path:
             self.save(index_path)
@@ -70,22 +79,38 @@ class LSHIndex:
         
         """
         
-        bucket=self._hash(query_vector)
+        candidate_indices=set()
 
         cosine_similarities=[]
 
-        vector_idx=self.hashtable[bucket]
+        for tree in self.trees:
 
-        for idx in vector_idx:
-            similarity=cosine_similarity(query_vector.reshape(1, -1), self.dataset_vectors[idx].reshape(1, -1))
+            bucket=tree._hash(query_vector)
 
-            cosine_similarities.append((similarity,idx))
+            candidate_indices.update(tree.hashtable.get(bucket, []))
 
-        cosine_similarities.sort(key=lambda x:x[0],reverse=True)
+        if not candidate_indices:
+            # return an array of -1 of length k if no candidates found
+            return np.full(k, -1, dtype=int)
 
-        top_k_ids = [idx for _ , idx in cosine_similarities[:k]]
+        
+        candidate_indices=list(candidate_indices)
 
-        return top_k_ids
+        candidate_vectors=self.dataset_vectors[candidate_indices]
+
+        query_vector=query_vector.reshape(1, -1)
+
+        similarities = cosine_similarity(query_vector, candidate_vectors)[0]
+
+        desc_indices = np.argsort(-similarities)
+
+        top_k=desc_indices[:k]
+
+        candidate_indices=np.array(candidate_indices)
+
+        actual_top_k=candidate_indices[top_k]
+
+        return actual_top_k
 
     def save(self,filepath: str):
         """
@@ -96,3 +121,14 @@ class LSHIndex:
             pickle.dump(self, f)
             
         print("Index saved successfully to {filepath}.")
+
+    @classmethod
+    def load(cls, filepath: str):
+        """
+            Loads a pre-built LSHIndex from a file.
+        """
+
+        with open(filepath, 'rb') as f:
+            index = pickle.load(f)
+
+        return index

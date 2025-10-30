@@ -16,6 +16,7 @@ wheels/
 embeddings.pkl
 lsh_index.pkl
 ground_truth.pkl
+query_embeddings.pkl
 faiss_lsh.index
 
 

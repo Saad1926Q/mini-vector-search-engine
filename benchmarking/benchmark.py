@@ -13,14 +13,19 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from engine import LSHIndex
 
-
 with open("../data/embeddings.pkl", "rb") as f:
     embedding_data = pickle.load(f)
+
+with open("../data/query_embeddings.pkl", "rb") as f:
+    query_embedding_data = pickle.load(f)
 
 embeddings_list = embedding_data["embeddings"]
 embeddings = np.array(embeddings_list).astype("float32")
 
-query_indices = np.random.choice(len(embeddings), 1000, replace=False)
+query_embeddings_list=query_embedding_data["embeddings"]
+query_embeddings=np.array(query_embeddings_list).astype("float32")
+
+query_indices = np.arange(0,len(query_embeddings_list))
 
 faiss_index: faiss.IndexLSH = faiss.read_index("../data/faiss_lsh.index")
 
@@ -30,8 +35,7 @@ with open("../data/ground_truth.pkl", "rb") as f:
 NUM_HYPERPLANES = 16  
 vector_dim = embeddings.shape[1]
 
-lsh = LSHIndex(num_hyperplanes=NUM_HYPERPLANES, vector_dimension=vector_dim)
-lsh.build_index(embeddings,index_path="../data/lsh_index.pkl")
+lsh = LSHIndex.load("../data/lsh_index.pkl")
 
 
 query_vector = embeddings[0]  
@@ -39,12 +43,13 @@ top_k = 5
 
 my_latencies = []
 faiss_latencies = []
+bf_latencies=[]
 my_recalls = []
 faiss_recalls = []
 
 for idx in tqdm(query_indices, desc="Benchmarking Queries"):
 
-    query_vector = embeddings[idx]
+    query_vector = query_embeddings[idx]
     true_neighbors = ground_truth[idx]
     
     start_time = time.perf_counter()
@@ -66,13 +71,25 @@ for idx in tqdm(query_indices, desc="Benchmarking Queries"):
     correct_found = len(faiss_results.intersection(true_neighbors))
     faiss_recalls.append(correct_found / top_k)
 
+    start_time = time.perf_counter()
+    
+    sims = cosine_similarity(query_vector.reshape(1, -1), embeddings)[0]
+
+    bf_indices = np.argsort(-sims)[:top_k]
+    bf_results = set(bf_indices)
+
+    end_time = time.perf_counter()
+    bf_latencies.append((end_time - start_time) * 1000)
+
 
 print("\n--- Benchmark Results ---")
 
-print("\n--- My LSH Index ---")
-print(f"  Average Latency: {np.mean(my_latencies):.4f} ms per query")
-print(f"  Average Recall:  {np.mean(my_recalls) * 100:.2f}%")
 
-print("\n--- FAISS LSH Index ---")
-print(f"  Average Latency: {np.mean(faiss_latencies):.4f} ms per query")
-print(f"  Average Recall:  {np.mean(faiss_recalls) * 100:.2f}%")
+print("\n--- Average Latency (per query) ---")
+print(f"  Brute Force Vector Search: {np.mean(bf_latencies):.4f} ms per query")
+print(f"  My LSH Index: {np.mean(my_latencies):.4f} ms per query")
+print(f"  FAISS LSH Index: {np.mean(faiss_latencies):.4f} ms per query")
+
+print("\n--- Average Recall (%) ---")
+print(f"  My LSH Index:  {np.mean(my_recalls) * 100:.2f}%")
+print(f"  FAISS LSH Index:  {np.mean(faiss_recalls) * 100:.2f}%")

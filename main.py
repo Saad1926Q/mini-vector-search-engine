@@ -29,8 +29,8 @@ image_paths = data["paths"]
 NUM_HYPERPLANES = 16  
 vector_dim = embeddings.shape[1]
 
-lsh = LSHIndex(num_hyperplanes=NUM_HYPERPLANES, vector_dimension=vector_dim)
-lsh.build_index(embeddings,index_path="data/lsh_index.pkl")
+lsh = LSHIndex(num_hyperplanes=NUM_HYPERPLANES, vector_dimension=vector_dim,num_trees=4)
+lsh.build_index(dataset_vectors=embeddings,index_path="data/lsh_index.pkl")
 
 
 query_vector = embeddings[0]  
