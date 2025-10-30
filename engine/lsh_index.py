@@ -63,21 +63,6 @@ class LSHIndex:
             self.save(index_path)
 
 
-    def _find_closest_buckets(self,query_hash,k):
-        distances=[]
-
-        for bucket_hash in self.hashtable.keys():
-            hamming_dist=hamming_distance(query_hash,bucket_hash)
-
-            distances.append((hamming_dist,bucket_hash))
-
-        distances.sort(key=lambda x: x[0])
-
-        closest_buckets = [bucket_hash for _ , bucket_hash in distances[:k]]
-
-        return closest_buckets
-            
-
     def query(self,query_vector,k):
         """
         
@@ -85,23 +70,17 @@ class LSHIndex:
         
         """
         
-        query_hash=self._hash(query_vector)
-
-        closest_buckets=self._find_closest_buckets(query_hash,10)
-
-        closest_buckets=set(closest_buckets)
+        bucket=self._hash(query_vector)
 
         cosine_similarities=[]
 
-        for bucket in closest_buckets:
-            vector_idx=self.hashtable[bucket]
+        vector_idx=self.hashtable[bucket]
 
-            for idx in vector_idx:
-                similarity=cosine_similarity(query_vector.reshape(1, -1), self.dataset_vectors[idx].reshape(1, -1))
+        for idx in vector_idx:
+            similarity=cosine_similarity(query_vector.reshape(1, -1), self.dataset_vectors[idx].reshape(1, -1))
 
-                cosine_similarities.append((similarity,idx))
+            cosine_similarities.append((similarity,idx))
 
-        
         cosine_similarities.sort(key=lambda x:x[0],reverse=True)
 
         top_k_ids = [idx for _ , idx in cosine_similarities[:k]]
